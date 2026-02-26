@@ -1,0 +1,59 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+.eggs
+dist
+build
+
+# Virtual environments
+.venv
+venv
+env
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov
+.tox
+
+# Type checking
+.mypy_cache
+
+# Linting
+.ruff_cache
+
+# IDE
+.idea
+.vscode
+*.swp
+
+# Environment files
+.env
+.env.*
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Model cache (pulled at runtime)
+model-cache/
+/tmp/model-cache/
+
+# Generated artifacts
+video-output/
+*.mp4
+*.avi
+*.mov
+
+# Docker
+docker-compose*.yml
+Dockerfile*
