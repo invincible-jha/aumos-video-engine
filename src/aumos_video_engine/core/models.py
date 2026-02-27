@@ -228,3 +228,91 @@ class SceneTemplate(AumOSModel, TenantMixin):
 
     def __repr__(self) -> str:
         return f"<SceneTemplate id={self.id} name={self.name!r} domain={self.domain}>"
+
+
+# ---------------------------------------------------------------------------
+# Metadata value objects — shared across adapters and interfaces
+# ---------------------------------------------------------------------------
+
+
+from dataclasses import dataclass as _dataclass, field as _field  # noqa: E402
+
+
+@_dataclass
+class VideoBoundingBox:
+    """Axis-aligned bounding box with confidence and class label.
+
+    Used for object detection, face detection, and tracking results.
+
+    Attributes:
+        x1: Left edge in pixels.
+        y1: Top edge in pixels.
+        x2: Right edge in pixels.
+        y2: Bottom edge in pixels.
+        label: Semantic class label (e.g., "face", "car", "object").
+        confidence: Detection confidence in [0.0, 1.0].
+        track_id: Optional temporal tracking identifier.
+    """
+
+    x1: int
+    y1: int
+    x2: int
+    y2: int
+    label: str
+    confidence: float
+    track_id: str | None = None
+
+
+@_dataclass
+class VideoTemporalEvent:
+    """A detected event spanning a range of frames.
+
+    Attributes:
+        event_type: Event category (e.g., "scene_transition", "motion_peak").
+        start_frame: First frame index of the event.
+        end_frame: Last frame index (inclusive).
+        confidence: Detection confidence in [0.0, 1.0].
+        attributes: Additional event-specific attributes.
+    """
+
+    event_type: str
+    start_frame: int
+    end_frame: int
+    confidence: float
+    attributes: dict[str, Any] = _field(default_factory=dict)
+
+
+@_dataclass
+class VideoMetadata:
+    """Complete structured metadata for a video sequence.
+
+    Produced by the metadata extractor adapter and consumed by the export
+    service for metadata embedding and privacy flag propagation.
+
+    Attributes:
+        num_frames: Total number of frames analysed.
+        resolution: (width, height) of frames in pixels.
+        fps_estimated: Estimated or configured frame rate.
+        dominant_action: Most likely action class label.
+        action_scores: Dict mapping action labels to confidence scores.
+        objects_per_frame: Per-frame list of detected bounding boxes.
+        scene_class: Top scene classification label.
+        scene_scores: Dict mapping scene labels to confidence scores.
+        temporal_events: List of detected temporal events.
+        face_detections: Per-frame list of face bounding boxes.
+        motion_summary: Motion analysis summary statistics.
+        privacy_flags: Privacy-relevant boolean flags.
+    """
+
+    num_frames: int
+    resolution: tuple[int, int]
+    fps_estimated: float
+    dominant_action: str
+    action_scores: dict[str, float]
+    objects_per_frame: list[list[VideoBoundingBox]]
+    scene_class: str
+    scene_scores: dict[str, float]
+    temporal_events: list[VideoTemporalEvent]
+    face_detections: list[list[VideoBoundingBox]]
+    motion_summary: dict[str, float]
+    privacy_flags: dict[str, bool]

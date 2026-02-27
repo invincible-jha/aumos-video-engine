@@ -17,9 +17,14 @@ from aumos_common.observability import get_logger
 
 from aumos_video_engine.core.interfaces import (
     FrameGeneratorProtocol,
+    MotionGeneratorProtocol,
     PrivacyEnforcerProtocol,
+    SceneCompositorProtocol,
     SceneComposerProtocol,
     TemporalEngineProtocol,
+    VideoExportHandlerProtocol,
+    VideoMetadataExtractorProtocol,
+    VideoQualityEvaluatorProtocol,
 )
 from aumos_video_engine.core.models import (
     JobStatus,
@@ -27,6 +32,7 @@ from aumos_video_engine.core.models import (
     SceneTemplate,
     VideoDomain,
     VideoGenerationJob,
+    VideoMetadata,
 )
 
 logger = get_logger(__name__)
@@ -781,3 +787,461 @@ class BatchService:
             except NotFoundError:
                 status_map[str(job_id)] = "not_found"
         return status_map
+
+
+class QualityEvaluationService:
+    """Service for running multi-dimensional video quality evaluations.
+
+    Wraps the VideoQualityEvaluatorProtocol adapter with structured logging,
+    event publishing, and report persistence. Can be invoked independently
+    as a post-processing step after video generation or batch composition.
+    """
+
+    def __init__(
+        self,
+        quality_evaluator: VideoQualityEvaluatorProtocol,
+        job_repository: Any,
+        event_publisher: EventPublisher,
+        min_fidelity_threshold: float = 0.6,
+    ) -> None:
+        """Initialize QualityEvaluationService.
+
+        Args:
+            quality_evaluator: Adapter implementing VideoQualityEvaluatorProtocol.
+            job_repository: Repository for VideoGenerationJob ORM records.
+            event_publisher: Kafka publisher for quality evaluation events.
+            min_fidelity_threshold: Minimum acceptable aggregate fidelity score.
+                Jobs scoring below this threshold are flagged in the event payload.
+        """
+        self._evaluator = quality_evaluator
+        self._job_repo = job_repository
+        self._publisher = event_publisher
+        self._min_fidelity = min_fidelity_threshold
+
+    async def evaluate_job_output(
+        self,
+        job_id: uuid.UUID,
+        frames: list[Any],
+        tenant: TenantContext,
+        reference_frames: list[Any] | None = None,
+    ) -> dict[str, Any]:
+        """Evaluate quality of a completed video generation job's output.
+
+        Computes the full quality report and publishes a Kafka event with
+        the aggregate fidelity score. Updates the job record if the score
+        falls below the minimum fidelity threshold.
+
+        Args:
+            job_id: UUID of the completed VideoGenerationJob.
+            frames: Generated video frames as RGB uint8 numpy arrays.
+            tenant: Current tenant context.
+            reference_frames: Optional reference frames for LPIPS comparison.
+
+        Returns:
+            Quality report dict as returned by generate_comparison_report.
+
+        Raises:
+            NotFoundError: If the job does not exist for this tenant.
+        """
+        job = await self._job_repo.get_by_id(job_id)
+        if not job or str(job.tenant_id) != str(tenant.tenant_id):
+            raise NotFoundError(f"VideoGenerationJob {job_id} not found")
+
+        logger.info(
+            "Starting quality evaluation",
+            job_id=str(job_id),
+            num_frames=len(frames),
+            has_reference=reference_frames is not None,
+        )
+
+        report = await self._evaluator.generate_comparison_report(
+            frames=frames,
+            reference_frames=reference_frames,
+            scene_transition_threshold=0.4,
+        )
+
+        fidelity = report.get("aggregate_fidelity", 0.0)
+        passed = fidelity >= self._min_fidelity
+
+        await self._publisher.publish(
+            Topics.VIDEO_LIFECYCLE,
+            {
+                "event_type": "quality_evaluated",
+                "tenant_id": str(tenant.tenant_id),
+                "job_id": str(job_id),
+                "aggregate_fidelity": fidelity,
+                "min_threshold": self._min_fidelity,
+                "passed": passed,
+                "num_scene_transitions": len(report.get("scene_transitions", [])),
+                "evaluation_notes": report.get("evaluation_notes", []),
+            },
+        )
+
+        logger.info(
+            "Quality evaluation complete",
+            job_id=str(job_id),
+            fidelity=fidelity,
+            passed=passed,
+        )
+        return report
+
+    async def score_fidelity(
+        self,
+        frames: list[Any],
+        reference_frames: list[Any] | None = None,
+    ) -> float:
+        """Compute aggregate fidelity score without persisting or publishing events.
+
+        Suitable for lightweight inline checks during multi-stage pipelines.
+
+        Args:
+            frames: Generated video frames as RGB uint8 numpy arrays.
+            reference_frames: Optional reference frames for LPIPS comparison.
+
+        Returns:
+            Aggregate fidelity score in [0.0, 1.0].
+        """
+        score = await self._evaluator.aggregate_fidelity_score(
+            frames=frames,
+            reference_frames=reference_frames,
+        )
+        logger.debug("Inline fidelity score computed", score=score)
+        return score
+
+
+class MotionEnhancementService:
+    """Service for temporal upsampling, camera motion, and frame interpolation.
+
+    Wraps the MotionGeneratorProtocol adapter with validated configuration
+    and Kafka event publication for motion enhancement lifecycle events.
+    """
+
+    def __init__(
+        self,
+        motion_generator: MotionGeneratorProtocol,
+        event_publisher: EventPublisher,
+        max_upsample_ratio: int = 4,
+    ) -> None:
+        """Initialize MotionEnhancementService.
+
+        Args:
+            motion_generator: Adapter implementing MotionGeneratorProtocol.
+            event_publisher: Kafka publisher for motion enhancement events.
+            max_upsample_ratio: Maximum permitted fps multiplier for upsampling.
+                Guards against accidental extreme frame counts.
+        """
+        self._generator = motion_generator
+        self._publisher = event_publisher
+        self._max_upsample_ratio = max_upsample_ratio
+
+    async def upsample_video(
+        self,
+        frames: list[Any],
+        source_fps: int,
+        target_fps: int,
+        tenant: TenantContext,
+        job_id: str,
+    ) -> list[Any]:
+        """Temporally upsample a generated video to a higher frame rate.
+
+        Args:
+            frames: Source video frames at source_fps.
+            source_fps: Original frame rate.
+            target_fps: Target frame rate (must be integer multiple of source_fps).
+            tenant: Current tenant context for event publishing.
+            job_id: Job identifier for event correlation.
+
+        Returns:
+            Upsampled frame list at target_fps.
+
+        Raises:
+            ValidationError: If the upsample ratio exceeds max_upsample_ratio
+                or if target_fps is not an integer multiple of source_fps.
+        """
+        if source_fps <= 0:
+            raise ValidationError(f"source_fps must be positive, got {source_fps}")
+        if target_fps % source_fps != 0:
+            raise ValidationError(
+                f"target_fps ({target_fps}) must be an integer multiple of source_fps ({source_fps})"
+            )
+        ratio = target_fps // source_fps
+        if ratio > self._max_upsample_ratio:
+            raise ValidationError(
+                f"Upsample ratio {ratio} exceeds maximum of {self._max_upsample_ratio}"
+            )
+
+        logger.info(
+            "Temporal upsampling started",
+            job_id=job_id,
+            source_fps=source_fps,
+            target_fps=target_fps,
+            source_frames=len(frames),
+        )
+
+        upsampled = await self._generator.temporal_upsample(
+            frames=frames,
+            source_fps=source_fps,
+            target_fps=target_fps,
+        )
+
+        await self._publisher.publish(
+            Topics.VIDEO_LIFECYCLE,
+            {
+                "event_type": "video_upsampled",
+                "tenant_id": str(tenant.tenant_id),
+                "job_id": job_id,
+                "source_fps": source_fps,
+                "target_fps": target_fps,
+                "source_frames": len(frames),
+                "output_frames": len(upsampled),
+            },
+        )
+
+        logger.info(
+            "Temporal upsampling complete",
+            job_id=job_id,
+            output_frames=len(upsampled),
+        )
+        return upsampled
+
+    async def add_camera_motion(
+        self,
+        frames: list[Any],
+        motion_type: Any,
+        intensity: float,
+        motion_params: dict[str, Any] | None = None,
+    ) -> list[Any]:
+        """Apply simulated camera motion to a frame sequence.
+
+        Args:
+            frames: Source RGB uint8 frames.
+            motion_type: CameraMotionType enum value specifying the motion.
+            intensity: Per-frame motion step magnitude.
+            motion_params: Optional additional motion configuration parameters.
+
+        Returns:
+            Motion-transformed RGB uint8 frame sequence.
+        """
+        logger.info(
+            "Applying camera motion",
+            motion_type=str(motion_type),
+            intensity=intensity,
+            num_frames=len(frames),
+        )
+        return await self._generator.apply_camera_motion(
+            frames=frames,
+            motion_type=motion_type,
+            intensity=intensity,
+            motion_params=motion_params,
+        )
+
+
+class VideoExportService:
+    """Service for encoding, uploading, and managing video export artifacts.
+
+    Wraps the VideoExportHandlerProtocol adapter with tenant-scoped storage
+    paths, metadata embedding, thumbnail generation, and Kafka event publication.
+    """
+
+    def __init__(
+        self,
+        export_handler: VideoExportHandlerProtocol,
+        metadata_extractor: VideoMetadataExtractorProtocol,
+        event_publisher: EventPublisher,
+    ) -> None:
+        """Initialize VideoExportService.
+
+        Args:
+            export_handler: Adapter implementing VideoExportHandlerProtocol.
+            metadata_extractor: Adapter for extracting video metadata to embed.
+            event_publisher: Kafka publisher for export lifecycle events.
+        """
+        self._handler = export_handler
+        self._metadata_extractor = metadata_extractor
+        self._publisher = event_publisher
+
+    async def export_and_upload(
+        self,
+        frames: list[Any],
+        fps: int,
+        job_id: str,
+        tenant: TenantContext,
+        format_name: str = "mp4",
+        codec_name: str = "h264",
+        output_resolution: tuple[int, int] | None = None,
+        audio_bytes: bytes | None = None,
+        embed_metadata: bool = True,
+    ) -> tuple[str, bytes]:
+        """Export a frame sequence to video, embed metadata, and upload to storage.
+
+        Runs metadata extraction, encodes to the requested format, embeds
+        structured metadata tags, uploads to MinIO/S3, and extracts a thumbnail.
+
+        Args:
+            frames: Generated RGB uint8 frame sequence.
+            fps: Frame rate of the video.
+            job_id: Job UUID string for artifact naming.
+            tenant: Current tenant context for tenant-scoped storage path.
+            format_name: Output container format ("mp4", "webm", or "avi").
+            codec_name: Video codec ("h264", "h265", or "vp9").
+            output_resolution: Optional (width, height) resize during encoding.
+            audio_bytes: Optional PCM audio bytes for muxing.
+            embed_metadata: Whether to run metadata extraction and embed tags.
+
+        Returns:
+            Tuple of (storage_uri, thumbnail_bytes).
+
+        Raises:
+            ValidationError: If format_name or codec_name are unsupported.
+        """
+        from aumos_video_engine.adapters.export_handler import VideoCodec, VideoContainer
+
+        format_map = {
+            "mp4": VideoContainer.MP4,
+            "webm": VideoContainer.WEBM,
+            "avi": VideoContainer.AVI,
+        }
+        codec_map = {
+            "h264": VideoCodec.H264,
+            "h265": VideoCodec.H265,
+            "vp9": VideoCodec.VP9,
+        }
+
+        if format_name not in format_map:
+            raise ValidationError(
+                f"Unsupported format '{format_name}'. Choose from: {list(format_map.keys())}"
+            )
+        if codec_name not in codec_map:
+            raise ValidationError(
+                f"Unsupported codec '{codec_name}'. Choose from: {list(codec_map.keys())}"
+            )
+
+        container = format_map[format_name]
+        codec = codec_map[codec_name]
+
+        logger.info(
+            "Video export started",
+            job_id=job_id,
+            tenant_id=str(tenant.tenant_id),
+            format=format_name,
+            codec=codec_name,
+            num_frames=len(frames),
+        )
+
+        # Optionally extract metadata for embedding
+        extra_metadata: dict[str, str] = {
+            "aumos_job_id": job_id,
+            "aumos_tenant_id": str(tenant.tenant_id),
+            "aumos_fps": str(fps),
+        }
+
+        if embed_metadata:
+            video_metadata = await self._metadata_extractor.extract_metadata(
+                frames=frames,
+                fps=fps,
+                run_face_detection=False,
+                run_object_detection=False,
+                object_sample_rate=10,
+            )
+            extra_metadata["aumos_action"] = video_metadata.dominant_action
+            extra_metadata["aumos_scene"] = video_metadata.scene_class
+            extra_metadata["aumos_num_frames"] = str(video_metadata.num_frames)
+
+        # Encode to requested format
+        if format_name == "mp4":
+            video_bytes = await self._handler.export_mp4(
+                frames=frames,
+                fps=fps,
+                output_resolution=output_resolution,
+                codec=codec,
+                crf=23,
+                preset="medium",
+                audio_bytes=audio_bytes,
+                metadata=extra_metadata,
+            )
+        elif format_name == "webm":
+            video_bytes = await self._handler.export_webm(
+                frames=frames,
+                fps=fps,
+                output_resolution=output_resolution,
+                crf=33,
+                cpu_used=4,
+                audio_bytes=audio_bytes,
+                metadata=extra_metadata,
+            )
+        else:
+            video_bytes = await self._handler.export_mp4(
+                frames=frames,
+                fps=fps,
+                output_resolution=output_resolution,
+                codec=VideoCodec.H264,
+                crf=23,
+                preset="medium",
+                audio_bytes=audio_bytes,
+                metadata=extra_metadata,
+            )
+
+        # Upload to storage
+        storage_uri = await self._handler.upload_to_storage(
+            video_bytes=video_bytes,
+            job_id=job_id,
+            tenant_id=str(tenant.tenant_id),
+            container_format=container,
+        )
+
+        # Extract thumbnail
+        thumbnail_bytes = await self._handler.extract_thumbnail(frames=frames, frame_index=None)
+
+        await self._publisher.publish(
+            Topics.VIDEO_LIFECYCLE,
+            {
+                "event_type": "video_exported",
+                "tenant_id": str(tenant.tenant_id),
+                "job_id": job_id,
+                "storage_uri": storage_uri,
+                "format": format_name,
+                "codec": codec_name,
+                "size_bytes": len(video_bytes),
+                "thumbnail_size_bytes": len(thumbnail_bytes),
+            },
+        )
+
+        logger.info(
+            "Video export complete",
+            job_id=job_id,
+            storage_uri=storage_uri,
+            size_bytes=len(video_bytes),
+        )
+        return storage_uri, thumbnail_bytes
+
+    async def extract_video_metadata(
+        self,
+        frames: list[Any],
+        fps: int,
+        run_face_detection: bool = True,
+    ) -> VideoMetadata:
+        """Extract and return structured metadata from a video frame sequence.
+
+        Args:
+            frames: RGB uint8 video frame sequence.
+            fps: Source frame rate.
+            run_face_detection: Whether to include face detection results.
+
+        Returns:
+            Fully populated VideoMetadata instance.
+        """
+        metadata = await self._metadata_extractor.extract_metadata(
+            frames=frames,
+            fps=fps,
+            run_face_detection=run_face_detection,
+            run_object_detection=True,
+            object_sample_rate=5,
+        )
+        logger.info(
+            "Video metadata extracted",
+            num_frames=metadata.num_frames,
+            dominant_action=metadata.dominant_action,
+            scene_class=metadata.scene_class,
+            faces_detected=metadata.privacy_flags.get("faces_detected", False),
+        )
+        return metadata
