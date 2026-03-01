@@ -6,10 +6,14 @@ Routes validate input (via Pydantic), call services, and return structured respo
 
 from __future__ import annotations
 
+import asyncio
+import base64
+import json
 import uuid
-from typing import Annotated
+from typing import Annotated, AsyncGenerator
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 
 from aumos_common.auth import TenantContext, get_current_tenant
 from aumos_common.pagination import PageRequest, PageResponse

@@ -1,0 +1,92 @@
+[
+  {
+    "name": "wrong_way_highway_driver",
+    "domain": "traffic",
+    "description": "Vehicle driving against traffic on highway entry ramp — rare AV edge case for detection training",
+    "is_public": true,
+    "scene_config": {
+      "environment": "highway_ramp_outdoor",
+      "lighting": {"type": "daylight_overcast", "intensity": 0.75},
+      "camera_path": "dashboard_cam_front",
+      "render_settings": {"motion_blur": true, "hdr": true},
+      "duration_seconds": 6
+    },
+    "objects": [
+      {"id": "ego_vehicle", "model_path": "objects/vehicle/sedan_generic.glb", "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {"color": "white", "license_plate_blur": true}},
+      {"id": "wrong_way_vehicle", "model_path": "objects/vehicle/truck_pickup.glb", "position": [50, 0, 0], "rotation": [0, 180, 0], "scale": 1.0, "material_config": {"color": "red", "license_plate_blur": true}},
+      {"id": "highway_barrier", "model_path": "objects/infrastructure/jersey_barrier.glb", "position": [0, 5, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {}}
+    ]
+  },
+  {
+    "name": "pedestrian_jaywalk_night_rain",
+    "domain": "traffic",
+    "description": "Pedestrian crossing highway unexpectedly in rain at night — visibility-degraded edge case",
+    "is_public": true,
+    "scene_config": {
+      "environment": "urban_street_night_rain",
+      "lighting": {"type": "streetlight_wet", "intensity": 0.4, "headlight_glare": true},
+      "camera_path": "dashboard_cam_front",
+      "render_settings": {"rain_density": "heavy", "reflections": true, "motion_blur": true},
+      "duration_seconds": 4
+    },
+    "objects": [
+      {"id": "pedestrian_dark_clothes", "model_path": "objects/human/figure_dark_clothing.glb", "position": [5, 0, 0], "rotation": [0, 90, 0], "scale": 1.0, "material_config": {"face_blur": true}},
+      {"id": "wet_road", "model_path": "objects/environment/wet_asphalt.glb", "position": [0, 0, -0.1], "rotation": [0, 0, 0], "scale": 10.0, "material_config": {"reflective": true, "water_puddles": true}},
+      {"id": "rain_particles", "model_path": "objects/effects/rain_emitter.glb", "position": [0, 0, 5], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {}}
+    ]
+  },
+  {
+    "name": "debris_highway_partial_obstruction",
+    "domain": "traffic",
+    "description": "Large debris partially blocking highway lane — AV obstacle detection at high speed",
+    "is_public": true,
+    "scene_config": {
+      "environment": "highway_outdoor_day",
+      "lighting": {"type": "daylight_bright", "intensity": 1.0},
+      "camera_path": "dashboard_cam_front",
+      "render_settings": {"motion_blur": true, "hdr": true},
+      "duration_seconds": 5
+    },
+    "objects": [
+      {"id": "debris_truck_tyre", "model_path": "objects/vehicle/truck_tyre_flat.glb", "position": [30, 0.5, 0], "rotation": [90, 30, 0], "scale": 1.0, "material_config": {}},
+      {"id": "debris_cardboard", "model_path": "objects/props/cardboard_box_crushed.glb", "position": [28, 0.1, 1], "rotation": [0, 45, 0], "scale": 1.5, "material_config": {}},
+      {"id": "highway_road", "model_path": "objects/environment/highway_3lane.glb", "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {}}
+    ]
+  },
+  {
+    "name": "emergency_vehicle_intersection_approach",
+    "domain": "traffic",
+    "description": "Ambulance running red light through busy intersection — AV emergency vehicle yield training",
+    "is_public": true,
+    "scene_config": {
+      "environment": "urban_intersection_outdoor",
+      "lighting": {"type": "daylight_direct", "intensity": 0.9},
+      "camera_path": "intersection_corner_static",
+      "render_settings": {"motion_blur": true},
+      "duration_seconds": 8
+    },
+    "objects": [
+      {"id": "ambulance", "model_path": "objects/vehicle/ambulance.glb", "position": [0, -20, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {"siren_lights": true, "license_plate_blur": true}},
+      {"id": "traffic_light_red", "model_path": "objects/infrastructure/traffic_light.glb", "position": [5, 5, 3], "rotation": [0, 180, 0], "scale": 1.0, "material_config": {"active_light": "red"}},
+      {"id": "crossing_vehicle_1", "model_path": "objects/vehicle/sedan_generic.glb", "position": [-15, 0, 0], "rotation": [0, 90, 0], "scale": 1.0, "material_config": {"color": "blue", "license_plate_blur": true}}
+    ]
+  },
+  {
+    "name": "bicycle_car_dooring",
+    "domain": "traffic",
+    "description": "Cyclist collision with suddenly opened car door — urban crash edge case for AV training",
+    "is_public": true,
+    "scene_config": {
+      "environment": "urban_street_daytime",
+      "lighting": {"type": "daylight_direct", "intensity": 0.85},
+      "camera_path": "curbside_static",
+      "render_settings": {"motion_blur": true},
+      "duration_seconds": 5
+    },
+    "objects": [
+      {"id": "parked_car", "model_path": "objects/vehicle/sedan_generic.glb", "position": [0, 3, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {"color": "grey", "license_plate_blur": true, "door_open": true}},
+      {"id": "bicycle_rider", "model_path": "objects/human/cyclist.glb", "position": [-5, 0.5, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {"face_blur": true}},
+      {"id": "bike_lane_marking", "model_path": "objects/environment/bike_lane.glb", "position": [0, 1, -0.1], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {}}
+    ]
+  }
+]

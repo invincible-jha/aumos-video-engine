@@ -1,0 +1,92 @@
+[
+  {
+    "name": "perimeter_breach_cut_fence",
+    "domain": "surveillance",
+    "description": "Intruder cutting chain-link fence at facility perimeter at night — rare intrusion scenario",
+    "is_public": true,
+    "scene_config": {
+      "environment": "outdoor_perimeter_night",
+      "lighting": {"type": "infrared_cctv", "intensity": 0.3, "night_vision": true},
+      "camera_path": "static_fisheye",
+      "render_settings": {"grain": 0.2, "low_light_noise": true},
+      "duration_seconds": 10
+    },
+    "objects": [
+      {"id": "chain_link_fence", "model_path": "objects/infrastructure/chain_link_fence.glb", "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {}},
+      {"id": "intruder_figure", "model_path": "objects/human/figure_dark_clothing.glb", "position": [0, 0, 0], "rotation": [0, 180, 0], "scale": 1.0, "material_config": {"face_blur": true}},
+      {"id": "bolt_cutters", "model_path": "objects/tools/bolt_cutters.glb", "position": [0, 1, 0], "rotation": [45, 0, 0], "scale": 0.8, "material_config": {}}
+    ]
+  },
+  {
+    "name": "abandoned_package_detection",
+    "domain": "surveillance",
+    "description": "Unattended bag left in busy airport concourse — threat detection training scenario",
+    "is_public": true,
+    "scene_config": {
+      "environment": "airport_concourse_indoor",
+      "lighting": {"type": "overhead_fluorescent", "intensity": 0.9},
+      "camera_path": "elevated_wide_static",
+      "render_settings": {"crowd_simulation": true, "crowd_density": "medium"},
+      "duration_seconds": 15
+    },
+    "objects": [
+      {"id": "backpack_abandoned", "model_path": "objects/props/backpack.glb", "position": [2, 0, 0], "rotation": [0, 30, 0], "scale": 1.0, "material_config": {"color": "black"}},
+      {"id": "crowd_pedestrians", "model_path": "objects/human/crowd_group.glb", "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {"face_blur": true}},
+      {"id": "seating_area", "model_path": "objects/furniture/airport_seats.glb", "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {}}
+    ]
+  },
+  {
+    "name": "crowd_surge_bottleneck",
+    "domain": "surveillance",
+    "description": "Dense crowd surge at exit bottleneck — crowd safety emergency training",
+    "is_public": true,
+    "scene_config": {
+      "environment": "venue_exit_indoor",
+      "lighting": {"type": "emergency_red", "intensity": 0.6, "strobe": true},
+      "camera_path": "elevated_angle_tracking",
+      "render_settings": {"crowd_simulation": true, "crowd_density": "very_high"},
+      "duration_seconds": 12
+    },
+    "objects": [
+      {"id": "exit_doorframe", "model_path": "objects/infrastructure/exit_door.glb", "position": [5, 0, 0], "rotation": [0, 90, 0], "scale": 1.0, "material_config": {}},
+      {"id": "crowd_surge", "model_path": "objects/human/crowd_dense.glb", "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {"face_blur": true}},
+      {"id": "barrier_metal", "model_path": "objects/infrastructure/crowd_barrier.glb", "position": [3, 2, 0], "rotation": [0, 90, 0], "scale": 1.0, "material_config": {}}
+    ]
+  },
+  {
+    "name": "atm_skimming_device_installation",
+    "domain": "surveillance",
+    "description": "Individual covertly installing skimming device on ATM — financial fraud detection training",
+    "is_public": true,
+    "scene_config": {
+      "environment": "bank_lobby_indoor",
+      "lighting": {"type": "retail_overhead", "intensity": 0.7},
+      "camera_path": "static_high_angle",
+      "render_settings": {"motion_blur": false},
+      "duration_seconds": 30
+    },
+    "objects": [
+      {"id": "atm_machine", "model_path": "objects/finance/atm_machine.glb", "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {}},
+      {"id": "suspicious_individual", "model_path": "objects/human/figure_casual.glb", "position": [0, 0.5, 0], "rotation": [0, 180, 0], "scale": 1.0, "material_config": {"face_blur": true}},
+      {"id": "skimming_device", "model_path": "objects/props/small_electronic.glb", "position": [0, 1, 0.3], "rotation": [0, 0, 0], "scale": 0.2, "material_config": {}}
+    ]
+  },
+  {
+    "name": "vehicle_gate_tailgating",
+    "domain": "surveillance",
+    "description": "Unauthorized vehicle tailgating through controlled access gate — access control evasion",
+    "is_public": true,
+    "scene_config": {
+      "environment": "parking_garage_entrance",
+      "lighting": {"type": "overhead_spot", "intensity": 0.85},
+      "camera_path": "static_side_angle",
+      "render_settings": {"motion_blur": true},
+      "duration_seconds": 8
+    },
+    "objects": [
+      {"id": "boom_barrier", "model_path": "objects/infrastructure/boom_barrier.glb", "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {}},
+      {"id": "authorized_vehicle", "model_path": "objects/vehicle/sedan_generic.glb", "position": [-8, 0, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {"color": "silver", "license_plate_blur": true}},
+      {"id": "tailgating_vehicle", "model_path": "objects/vehicle/suv_generic.glb", "position": [-12, 0, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {"color": "black", "license_plate_blur": true}}
+    ]
+  }
+]

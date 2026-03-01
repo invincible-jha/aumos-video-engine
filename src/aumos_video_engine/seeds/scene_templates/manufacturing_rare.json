@@ -1,0 +1,93 @@
+[
+  {
+    "name": "assembly_line_robot_failure",
+    "domain": "manufacturing",
+    "description": "Industrial robot arm stops mid-cycle due to servo fault — depicts emergency stop with safety light activation",
+    "is_public": true,
+    "scene_config": {
+      "environment": "factory_floor_indoor",
+      "lighting": {"type": "industrial_fluorescent", "intensity": 0.85, "shadow": true},
+      "camera_path": "static_wide_angle",
+      "render_settings": {"motion_blur": false, "depth_of_field": false},
+      "ambient_noise": "factory_hum",
+      "duration_seconds": 5
+    },
+    "objects": [
+      {"id": "robot_arm_kuka", "model_path": "objects/industrial/robot_arm_kuka.glb", "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {"color": "orange", "metallic": 0.9}},
+      {"id": "safety_light_amber", "model_path": "objects/safety/beacon_light.glb", "position": [2, 3, 0], "rotation": [0, 0, 0], "scale": 0.5, "material_config": {"emissive": true, "emissive_color": "amber", "blink_hz": 2.0}},
+      {"id": "assembly_conveyor", "model_path": "objects/industrial/conveyor_belt.glb", "position": [-1, 0, 1], "rotation": [0, 90, 0], "scale": 1.0, "material_config": {}}
+    ]
+  },
+  {
+    "name": "welding_spark_defect",
+    "domain": "manufacturing",
+    "description": "Welding station producing excessive sparks due to electrode contamination — rare defect scenario",
+    "is_public": true,
+    "scene_config": {
+      "environment": "factory_floor_indoor",
+      "lighting": {"type": "spot_overhead", "intensity": 0.6, "weld_glow": true},
+      "camera_path": "close_up_static",
+      "render_settings": {"particle_effects": true, "spark_count": 200},
+      "duration_seconds": 4
+    },
+    "objects": [
+      {"id": "welding_torch", "model_path": "objects/industrial/welding_torch.glb", "position": [0, 1, 0], "rotation": [45, 0, 0], "scale": 0.8, "material_config": {}},
+      {"id": "workpiece_steel", "model_path": "objects/industrial/steel_plate.glb", "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": 1.2, "material_config": {"metallic": 1.0, "roughness": 0.3}},
+      {"id": "spark_emitter", "model_path": "objects/effects/particle_emitter.glb", "position": [0, 0.5, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {"emissive": true, "emissive_color": "orange"}}
+    ]
+  },
+  {
+    "name": "quality_inspection_defect_pass",
+    "domain": "manufacturing",
+    "description": "Automated vision inspection system incorrectly passing a defective component — false negative scenario",
+    "is_public": true,
+    "scene_config": {
+      "environment": "clean_room_white",
+      "lighting": {"type": "ring_light", "intensity": 1.0, "shadow": false},
+      "camera_path": "top_down_static",
+      "render_settings": {"motion_blur": false},
+      "duration_seconds": 3
+    },
+    "objects": [
+      {"id": "defective_pcb", "model_path": "objects/electronics/pcb_defective.glb", "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {"defect_type": "solder_bridge"}},
+      {"id": "inspection_camera", "model_path": "objects/industrial/camera_module.glb", "position": [0, 0, 2], "rotation": [180, 0, 0], "scale": 0.5, "material_config": {}},
+      {"id": "green_indicator", "model_path": "objects/ui/indicator_led.glb", "position": [1, 0, 0.5], "rotation": [0, 0, 0], "scale": 0.3, "material_config": {"emissive": true, "emissive_color": "green"}}
+    ]
+  },
+  {
+    "name": "chemical_spill_containment",
+    "domain": "manufacturing",
+    "description": "Industrial solvent spill on factory floor triggering automated containment protocol",
+    "is_public": true,
+    "scene_config": {
+      "environment": "factory_floor_indoor",
+      "lighting": {"type": "emergency_red", "intensity": 0.7, "strobe": true},
+      "camera_path": "wide_angle_elevated",
+      "render_settings": {"fluid_simulation": true},
+      "duration_seconds": 8
+    },
+    "objects": [
+      {"id": "chemical_drum_toppled", "model_path": "objects/industrial/drum_200l.glb", "position": [0, 0, 0], "rotation": [90, 0, 30], "scale": 1.0, "material_config": {"color": "yellow"}},
+      {"id": "fluid_spill", "model_path": "objects/effects/fluid_plane.glb", "position": [0, 0, -0.1], "rotation": [0, 0, 0], "scale": 3.0, "material_config": {"color": "blue", "opacity": 0.7, "reflective": true}},
+      {"id": "drain_gutter", "model_path": "objects/industrial/floor_gutter.glb", "position": [2, 0, -0.2], "rotation": [0, 0, 0], "scale": 1.5, "material_config": {}}
+    ]
+  },
+  {
+    "name": "forklift_near_miss",
+    "domain": "manufacturing",
+    "description": "Forklift near-miss event in warehouse aisle — worker steps into path and emergency stops",
+    "is_public": true,
+    "scene_config": {
+      "environment": "warehouse_indoor",
+      "lighting": {"type": "industrial_fluorescent", "intensity": 0.8},
+      "camera_path": "side_angle_tracking",
+      "render_settings": {"motion_blur": true},
+      "duration_seconds": 6
+    },
+    "objects": [
+      {"id": "forklift_toyota", "model_path": "objects/industrial/forklift.glb", "position": [-5, 0, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {"color": "yellow"}},
+      {"id": "worker_pedestrian", "model_path": "objects/human/worker_safety_vest.glb", "position": [0, 0, 0], "rotation": [0, 90, 0], "scale": 1.0, "material_config": {}},
+      {"id": "pallet_rack", "model_path": "objects/industrial/pallet_rack.glb", "position": [3, 0, 0], "rotation": [0, 0, 0], "scale": 1.0, "material_config": {}}
+    ]
+  }
+]
