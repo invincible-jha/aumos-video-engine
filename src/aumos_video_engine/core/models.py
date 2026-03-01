@@ -142,6 +142,16 @@ class VideoGenerationJob(AumOSModel, TenantMixin):
         nullable=True,
         comment="MinIO/S3 URI of the completed video artifact",
     )
+    annotation_uri: Column[str | None] = Column(
+        String(1024),
+        nullable=True,
+        comment="MinIO/S3 URI for COCO/YOLO annotation archive (GAP-90)",
+    )
+    annotation_format: Column[str | None] = Column(
+        String(20),
+        nullable=True,
+        comment="Annotation format exported: 'coco', 'yolo', or None if not exported",
+    )
     error_message: Column[str | None] = Column(
         Text,
         nullable=True,
