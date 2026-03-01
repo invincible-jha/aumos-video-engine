@@ -279,3 +279,126 @@ async def list_templates(
         ],
         total=len(templates),
     )
+
+
+# ─── SSE Real-Time Preview ─────────────────────────────────────────────────────
+
+
+async def _sse_frame_generator(
+    job_id: uuid.UUID,
+    service: "GenerationService",
+    tenant: TenantContext,
+    max_wait_seconds: float = 120.0,
+    poll_interval_seconds: float = 0.5,
+) -> AsyncGenerator[str, None]:
+    """Async generator that polls a generation job and yields SSE frame events.
+
+    Each event is formatted as:
+        data: {"frame_index": N, "total_frames": M, "image_b64": "<base64 PNG>"}
+
+    Args:
+        job_id: UUID of the video generation job to preview.
+        service: Generation service for polling job state.
+        tenant: Tenant context for authorization.
+        max_wait_seconds: Maximum time to poll before giving up.
+        poll_interval_seconds: Polling interval.
+
+    Yields:
+        SSE-formatted strings ready for StreamingResponse.
+    """
+    import time
+
+    deadline = time.monotonic() + max_wait_seconds
+    frame_cursor = 0
+
+    while time.monotonic() < deadline:
+        job = await service.get_job(job_id, tenant)
+
+        # Check for preview frames on the job (stored in model_config_json)
+        preview_frames: list[str] = job.model_config_json.get("preview_frames", [])
+
+        while frame_cursor < len(preview_frames):
+            frame_b64 = preview_frames[frame_cursor]
+            event_payload = json.dumps(
+                {
+                    "frame_index": frame_cursor,
+                    "total_frames": job.num_frames,
+                    "image_b64": frame_b64,
+                    "status": job.status.value,
+                }
+            )
+            yield f"data: {event_payload}\n\n"
+            frame_cursor += 1
+
+        if job.status.value in ("completed", "failed", "cancelled"):
+            # Send terminal event
+            terminal_payload = json.dumps(
+                {
+                    "type": "done",
+                    "status": job.status.value,
+                    "output_uri": job.output_uri,
+                    "total_frames_sent": frame_cursor,
+                }
+            )
+            yield f"data: {terminal_payload}\n\n"
+            return
+
+        # Heartbeat to keep connection alive
+        yield ": heartbeat\n\n"
+        await asyncio.sleep(poll_interval_seconds)
+
+    # Timeout
+    yield f"data: {json.dumps({'type': 'timeout', 'job_id': str(job_id)})}\n\n"
+
+
+@router.get(
+    "/jobs/{job_id}/preview/stream",
+    summary="Real-time SSE video preview",
+    description=(
+        "Server-Sent Events stream that delivers video frames as base64 PNG "
+        "while the generation job is running. Frames are sent as they become "
+        "available in the job's preview buffer. The stream terminates when the "
+        "job completes, fails, or times out after 120 seconds. "
+        "Each event: {frame_index, total_frames, image_b64, status}."
+    ),
+    response_class=StreamingResponse,
+)
+async def stream_preview(
+    job_id: uuid.UUID,
+    tenant: Annotated[TenantContext, Depends(get_current_tenant)],
+    service: Annotated[GenerationService, Depends(get_generation_service)],
+) -> StreamingResponse:
+    """Stream video generation preview frames via Server-Sent Events.
+
+    Args:
+        job_id: UUID of the video generation job.
+        tenant: Authenticated tenant context.
+        service: Generation service.
+
+    Returns:
+        StreamingResponse with text/event-stream media type.
+
+    Raises:
+        404: If the job does not exist or belongs to a different tenant.
+    """
+    # Verify job exists and is accessible before starting stream
+    job = await service.get_job(job_id, tenant)
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Video job {job_id} not found",
+        )
+
+    return StreamingResponse(
+        _sse_frame_generator(
+            job_id=job_id,
+            service=service,
+            tenant=tenant,
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )

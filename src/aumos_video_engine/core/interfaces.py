@@ -14,6 +14,52 @@ from aumos_video_engine.core.models import VideoMetadata
 
 
 @runtime_checkable
+class VideoGeneratorProtocol(Protocol):
+    """Protocol for text-to-video generation adapters (GAP-88).
+
+    Implementations include OpenSoraAdapter, CogVideoXAdapter, and the
+    legacy StableVideoDiffusionAdapter. The registry pattern (model_id
+    and max_frames properties) enables adapter-agnostic model switching.
+    """
+
+    @property
+    def model_id(self) -> str:
+        """HuggingFace model identifier or local path for this adapter."""
+        ...
+
+    @property
+    def max_frames(self) -> int:
+        """Maximum number of frames this model can generate in a single call."""
+        ...
+
+    async def generate(
+        self,
+        prompt: str,
+        num_frames: int,
+        fps: int,
+        resolution: tuple[int, int],
+        seed: int | None,
+    ) -> bytes:
+        """Generate a video and return MP4 bytes.
+
+        Args:
+            prompt: Text description of video content.
+            num_frames: Number of frames to generate (capped at max_frames).
+            fps: Target frames per second.
+            resolution: Output resolution as (width, height) in pixels.
+            seed: Random seed for reproducible generation. None = random.
+
+        Returns:
+            MP4-encoded video bytes.
+        """
+        ...
+
+    async def is_available(self) -> bool:
+        """Return True if the model is loaded and ready for inference."""
+        ...
+
+
+@runtime_checkable
 class FrameGeneratorProtocol(Protocol):
     """Protocol for synthetic video frame generators.
 
